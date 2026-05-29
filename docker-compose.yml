@@ -1,0 +1,136 @@
+version: '3.9'
+
+services:
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD","rabbitmq-diagnostics","ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── User Service ──────────────────────────────
+  user_db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: user_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+    volumes:
+      - user_db_data:/var/lib/postgresql/data
+
+  user_service:
+    build: ./user_service
+    ports:
+      - "8001:8000"
+    depends_on:
+      - user_db
+    environment:
+      DATABASE_URL: postgres://postgres:secret@user_db:5432/user_db
+      SECRET_KEY: django-user-secret-key
+      DEBUG: "True"
+
+  # ── Aid Request Service ───────────────────────
+  aid_request_db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: aid_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+    volumes:
+      - aid_db_data:/var/lib/postgresql/data
+
+  aid_request_service:
+    build: ./aid_request_service
+    ports:
+      - "8002:8000"
+    depends_on:
+      - aid_request_db
+      - rabbitmq
+    environment:
+      DATABASE_URL: postgres://postgres:secret@aid_request_db:5432/aid_db
+      SECRET_KEY: django-aid-secret-key
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      USER_SERVICE_URL: http://user_service:8000
+      DISTRIBUTION_SERVICE_URL: http://distribution_service:8000
+      DEBUG: "True"
+
+  # ── Donation Service ──────────────────────────
+  donation_db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: donation_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+    volumes:
+      - donation_db_data:/var/lib/postgresql/data
+
+  donation_service:
+    build: ./donation_service
+    ports:
+      - "8003:8000"
+    depends_on:
+      - donation_db
+      - rabbitmq
+    environment:
+      DATABASE_URL: postgres://postgres:secret@donation_db:5432/donation_db
+      SECRET_KEY: django-donation-secret-key
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      DEBUG: "True"
+
+  # ── Distribution Service ──────────────────────
+  distribution_db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: distribution_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+    volumes:
+      - distribution_db_data:/var/lib/postgresql/data
+
+  distribution_service:
+    build: ./distribution_service
+    ports:
+      - "8004:8000"
+    depends_on:
+      - distribution_db
+      - rabbitmq
+    environment:
+      DATABASE_URL: postgres://postgres:secret@distribution_db:5432/distribution_db
+      SECRET_KEY: django-distribution-secret-key
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      DEBUG: "True"
+
+  # ── Notification Service ──────────────────────
+  notification_db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: notification_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+    volumes:
+      - notification_db_data:/var/lib/postgresql/data
+
+  notification_service:
+    build: ./notification_service
+    ports:
+      - "8005:8000"
+    depends_on:
+      - notification_db
+      - rabbitmq
+    environment:
+      DATABASE_URL: postgres://postgres:secret@notification_db:5432/notification_db
+      SECRET_KEY: django-notification-secret-key
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      DEBUG: "True"
+
+volumes:
+  user_db_data:
+  aid_db_data:
+  donation_db_data:
+  distribution_db_data:
+  notification_db_data:
